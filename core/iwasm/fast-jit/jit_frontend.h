@@ -104,28 +104,6 @@ typedef enum FloatArithmetic {
     FLOAT_MAX,
 } FloatArithmetic;
 
-typedef enum JitExceptionID {
-    JIT_EXCE_UNREACHABLE = 0,
-    JIT_EXCE_OUT_OF_MEMORY,
-    JIT_EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
-    JIT_EXCE_INTEGER_OVERFLOW,
-    JIT_EXCE_INTEGER_DIVIDE_BY_ZERO,
-    JIT_EXCE_INVALID_CONVERSION_TO_INTEGER,
-    JIT_EXCE_INVALID_FUNCTION_TYPE_INDEX,
-    JIT_EXCE_INVALID_FUNCTION_INDEX,
-    JIT_EXCE_UNDEFINED_ELEMENT,
-    JIT_EXCE_UNINITIALIZED_ELEMENT,
-    JIT_EXCE_CALL_UNLINKED_IMPORT_FUNC,
-    JIT_EXCE_NATIVE_STACK_OVERFLOW,
-    JIT_EXCE_UNALIGNED_ATOMIC,
-    JIT_EXCE_AUX_STACK_OVERFLOW,
-    JIT_EXCE_AUX_STACK_UNDERFLOW,
-    JIT_EXCE_OUT_OF_BOUNDS_TABLE_ACCESS,
-    JIT_EXCE_OPERAND_STACK_OVERFLOW,
-    JIT_EXCE_ALREADY_THROWN,
-    JIT_EXCE_NUM,
-} JitExceptionID;
-
 /**
  * Translate instructions in a function. The translated block must
  * end with a branch instruction whose targets are offsets relating to
@@ -197,19 +175,10 @@ JitReg
 get_func_type_indexes_reg(JitFrame *frame);
 
 JitReg
-get_global_data_reg(JitFrame *frame);
-
-JitReg
 get_aux_stack_bound_reg(JitFrame *frame);
 
 JitReg
 get_aux_stack_bottom_reg(JitFrame *frame);
-
-JitReg
-get_memories_reg(JitFrame *frame);
-
-JitReg
-get_memory_inst_reg(JitFrame *frame, uint32 mem_idx);
 
 JitReg
 get_memory_data_reg(JitFrame *frame, uint32 mem_idx);
@@ -233,13 +202,7 @@ JitReg
 get_mem_bound_check_16bytes_reg(JitFrame *frame, uint32 mem_idx);
 
 JitReg
-get_tables_reg(JitFrame *frame);
-
-JitReg
-get_table_inst_reg(JitFrame *frame, uint32 table_idx);
-
-JitReg
-get_table_data_reg(JitFrame *frame, uint32 table_idx);
+get_table_elems_reg(JitFrame *frame, uint32 table_idx);
 
 JitReg
 get_table_cur_size_reg(JitFrame *frame, uint32 table_idx);

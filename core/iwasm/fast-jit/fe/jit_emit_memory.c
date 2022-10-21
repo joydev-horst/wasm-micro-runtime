@@ -78,8 +78,8 @@ check_and_seek_on_64bit_platform(JitCompContext *cc, JitReg addr, JitReg offset,
 #ifndef OS_ENABLE_HW_BOUND_CHECK
     /* if (offset1 > memory_boundary) goto EXCEPTION */
     GEN_INSN(CMP, cc->cmp_reg, offset1, memory_boundary);
-    if (!jit_emit_exception(cc, JIT_EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
-                            JIT_OP_BGTU, cc->cmp_reg, NULL)) {
+    if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, JIT_OP_BGTU,
+                            cc->cmp_reg, NULL)) {
         goto fail;
     }
 #endif
@@ -103,16 +103,16 @@ check_and_seek_on_32bit_platform(JitCompContext *cc, JitReg addr, JitReg offset,
 
     /* if (offset1 < addr) goto EXCEPTION */
     GEN_INSN(CMP, cc->cmp_reg, offset1, addr);
-    if (!jit_emit_exception(cc, JIT_EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
-                            JIT_OP_BLTU, cc->cmp_reg, NULL)) {
+    if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, JIT_OP_BLTU,
+                            cc->cmp_reg, NULL)) {
         goto fail;
     }
 
 #ifndef OS_ENABLE_HW_BOUND_CHECK
     /* if (offset1 > memory_boundary) goto EXCEPTION */
     GEN_INSN(CMP, cc->cmp_reg, offset1, memory_boundary);
-    if (!jit_emit_exception(cc, JIT_EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
-                            JIT_OP_BGTU, cc->cmp_reg, NULL)) {
+    if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, JIT_OP_BGTU,
+                            cc->cmp_reg, NULL)) {
         goto fail;
     }
 #endif
@@ -136,15 +136,18 @@ check_and_seek(JitCompContext *cc, JitReg addr, uint32 offset, uint32 bytes)
     /* ---------- check ---------- */
     /* 1. shortcut if the memory size is 0 */
     if (0 == cc->cur_wasm_module->memories[mem_idx].init_page_count) {
-        JitReg memory_inst, cur_mem_page_count;
+        JitReg module_inst, cur_page_count;
+        uint32 cur_page_count_offset =
+            (uint32)offsetof(WASMModuleInstance, global_table_data.bytes)
+            + (uint32)offsetof(WASMMemoryInstance, cur_page_count);
 
         /* if (cur_mem_page_count == 0) goto EXCEPTION */
-        memory_inst = get_memory_inst_reg(cc->jit_frame, mem_idx);
-        cur_mem_page_count = jit_cc_new_reg_I32(cc);
-        GEN_INSN(LDI32, cur_mem_page_count, memory_inst,
-                 NEW_CONST(I32, offsetof(WASMMemoryInstance, cur_page_count)));
-        GEN_INSN(CMP, cc->cmp_reg, cur_mem_page_count, NEW_CONST(I32, 0));
-        if (!jit_emit_exception(cc, JIT_EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
+        module_inst = get_module_inst_reg(cc->jit_frame);
+        cur_page_count = jit_cc_new_reg_I32(cc);
+        GEN_INSN(LDI32, cur_page_count, module_inst,
+                 NEW_CONST(I32, cur_page_count_offset));
+        GEN_INSN(CMP, cc->cmp_reg, cur_page_count, NEW_CONST(I32, 0));
+        if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS,
                                 JIT_OP_BEQ, cc->cmp_reg, NULL)) {
             goto fail;
         }
@@ -493,15 +496,17 @@ fail:
 bool
 jit_compile_op_memory_size(JitCompContext *cc, uint32 mem_idx)
 {
-    JitReg mem_inst, res;
+    JitReg module_inst, cur_page_count;
+    uint32 cur_page_count_offset =
+        (uint32)offsetof(WASMModuleInstance, global_table_data.bytes)
+        + (uint32)offsetof(WASMMemoryInstance, cur_page_count);
 
-    mem_inst = get_memory_inst_reg(cc->jit_frame, mem_idx);
+    module_inst = get_module_inst_reg(cc->jit_frame);
+    cur_page_count = jit_cc_new_reg_I32(cc);
+    GEN_INSN(LDI32, cur_page_count, module_inst,
+             NEW_CONST(I32, cur_page_count_offset));
 
-    res = jit_cc_new_reg_I32(cc);
-    GEN_INSN(LDI32, res, mem_inst,
-             NEW_CONST(I32, offsetof(WASMMemoryInstance, cur_page_count)));
-
-    PUSH_I32(res);
+    PUSH_I32(cur_page_count);
 
     return true;
 fail:
@@ -511,14 +516,18 @@ fail:
 bool
 jit_compile_op_memory_grow(JitCompContext *cc, uint32 mem_idx)
 {
-    JitReg memory_inst, grow_res, res;
+    JitReg module_inst, grow_res, res;
     JitReg prev_page_count, inc_page_count, args[2];
 
     /* Get current page count */
-    memory_inst = get_memory_inst_reg(cc->jit_frame, mem_idx);
+    uint32 cur_page_count_offset =
+        (uint32)offsetof(WASMModuleInstance, global_table_data.bytes)
+        + (uint32)offsetof(WASMMemoryInstance, cur_page_count);
+
+    module_inst = get_module_inst_reg(cc->jit_frame);
     prev_page_count = jit_cc_new_reg_I32(cc);
-    GEN_INSN(LDI32, prev_page_count, memory_inst,
-             NEW_CONST(I32, offsetof(WASMMemoryInstance, cur_page_count)));
+    GEN_INSN(LDI32, prev_page_count, module_inst,
+             NEW_CONST(I32, cur_page_count_offset));
 
     /* Call wasm_enlarge_memory */
     POP_I32(inc_page_count);
@@ -604,8 +613,8 @@ jit_compile_op_memory_init(JitCompContext *cc, uint32 mem_idx, uint32 seg_idx)
         goto fail;
 
     GEN_INSN(CMP, cc->cmp_reg, res, NEW_CONST(I32, 0));
-    if (!jit_emit_exception(cc, JIT_EXCE_ALREADY_THROWN, JIT_OP_BLTS,
-                            cc->cmp_reg, NULL))
+    if (!jit_emit_exception(cc, EXCE_ALREADY_THROWN, JIT_OP_BLTS, cc->cmp_reg,
+                            NULL))
         goto fail;
 
     return true;
@@ -687,8 +696,8 @@ jit_compile_op_memory_copy(JitCompContext *cc, uint32 src_mem_idx,
         goto fail;
 
     GEN_INSN(CMP, cc->cmp_reg, res, NEW_CONST(I32, 0));
-    if (!jit_emit_exception(cc, JIT_EXCE_ALREADY_THROWN, JIT_OP_BLTS,
-                            cc->cmp_reg, NULL))
+    if (!jit_emit_exception(cc, EXCE_ALREADY_THROWN, JIT_OP_BLTS, cc->cmp_reg,
+                            NULL))
         goto fail;
 
     return true;
@@ -741,8 +750,8 @@ jit_compile_op_memory_fill(JitCompContext *cc, uint32 mem_idx)
         goto fail;
 
     GEN_INSN(CMP, cc->cmp_reg, res, NEW_CONST(I32, 0));
-    if (!jit_emit_exception(cc, JIT_EXCE_ALREADY_THROWN, JIT_OP_BLTS,
-                            cc->cmp_reg, NULL))
+    if (!jit_emit_exception(cc, EXCE_ALREADY_THROWN, JIT_OP_BLTS, cc->cmp_reg,
+                            NULL))
         goto fail;
 
     return true;

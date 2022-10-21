@@ -263,6 +263,9 @@ struct WASMFunction {
 #if WASM_ENABLE_FAST_JIT != 0
     void *fast_jit_jitted_code;
 #endif
+#if WASM_ENABLE_JIT != 0
+    void *llvm_jit_func_ptr;
+#endif
 };
 
 struct WASMGlobal {
@@ -321,6 +324,8 @@ typedef struct WASIArguments {
     /* in CIDR noation */
     const char **addr_pool;
     uint32 addr_count;
+    const char **ns_lookup_pool;
+    uint32 ns_lookup_count;
     char **argv;
     uint32 argc;
     int stdio[3];
@@ -359,6 +364,18 @@ typedef struct WASMCustomSection {
     uint8 *content_addr;
     uint32 content_len;
 } WASMCustomSection;
+#endif
+
+#if WASM_ENABLE_JIT != 0
+struct AOTCompData;
+struct AOTCompContext;
+
+/* Orc JIT thread arguments */
+typedef struct OrcJitThreadArg {
+    struct AOTCompContext *comp_ctx;
+    struct WASMModule *module;
+    uint32 group_idx;
+} OrcJitThreadArg;
 #endif
 
 struct WASMModule {
@@ -404,6 +421,9 @@ struct WASMModule {
     WASMTableSeg *table_segments;
     WASMDataSeg **data_segments;
     uint32 start_function;
+
+    /* total global variable size */
+    uint32 global_data_size;
 
     /* the index of auxiliary __data_end global,
        -1 means unexported */
@@ -488,8 +508,20 @@ struct WASMModule {
 #endif
 
 #if WASM_ENABLE_FAST_JIT != 0
-    /* point to JITed functions */
+    /* func pointers of Fast JITed (un-imported) functions */
     void **fast_jit_func_ptrs;
+#endif
+
+#if WASM_ENABLE_JIT != 0
+    struct AOTCompData *comp_data;
+    struct AOTCompContext *comp_ctx;
+    /* func pointers of LLVM JITed (un-imported) functions */
+    void **func_ptrs;
+    /* whether the func pointers are compiled */
+    bool *func_ptrs_compiled;
+    bool orcjit_stop_compiling;
+    korp_tid orcjit_threads[WASM_ORC_JIT_BACKEND_THREAD_NUM];
+    OrcJitThreadArg orcjit_thread_args[WASM_ORC_JIT_BACKEND_THREAD_NUM];
 #endif
 };
 

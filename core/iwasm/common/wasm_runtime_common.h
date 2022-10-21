@@ -363,6 +363,8 @@ typedef struct WASIContext {
     struct fd_prestats *prestats;
     struct argv_environ_values *argv_environ;
     struct addr_pool *addr_pool;
+    char *ns_lookup_buf;
+    char **ns_lookup_list;
     char *argv_buf;
     char **argv_list;
     char *env_buf;
@@ -717,9 +719,6 @@ void
 wasm_runtime_unregister_module(const WASMModuleCommon *module);
 
 bool
-wasm_runtime_is_module_registered(const char *module_name);
-
-bool
 wasm_runtime_add_loading_module(const char *module_name, char *error_buf,
                                 uint32 error_buf_size);
 
@@ -775,6 +774,7 @@ wasm_runtime_init_wasi(WASMModuleInstanceCommon *module_inst,
                        const char *map_dir_list[], uint32 map_dir_count,
                        const char *env[], uint32 env_count,
                        const char *addr_pool[], uint32 addr_pool_size,
+                       const char *ns_lookup_pool[], uint32 ns_lookup_pool_size,
                        char *argv[], uint32 argc, int stdinfd, int stdoutfd,
                        int stderrfd, char *error_buf, uint32 error_buf_size);
 
@@ -791,6 +791,11 @@ wasm_runtime_get_wasi_ctx(WASMModuleInstanceCommon *module_inst);
 WASM_RUNTIME_API_EXTERN void
 wasm_runtime_set_wasi_addr_pool(wasm_module_t module, const char *addr_pool[],
                                 uint32 addr_pool_size);
+
+WASM_RUNTIME_API_EXTERN void
+wasm_runtime_set_wasi_ns_lookup_pool(wasm_module_t module,
+                                     const char *ns_lookup_pool[],
+                                     uint32 ns_lookup_pool_size);
 #endif /* end of WASM_ENABLE_LIBC_WASI */
 
 #if WASM_ENABLE_REF_TYPES != 0
@@ -847,17 +852,6 @@ wasm_runtime_dump_line_buf_impl(const char *line_buf, bool dump_or_print,
 WASMModuleCommon *
 wasm_exec_env_get_module(WASMExecEnv *exec_env);
 
-/**
- * Enlarge wasm memory data space.
- *
- * @param module the wasm module instance
- * @param inc_page_count denote the page number to increase
- * @return return true if enlarge successfully, false otherwise
- */
-bool
-wasm_runtime_enlarge_memory(WASMModuleInstanceCommon *module,
-                            uint32 inc_page_count);
-
 /* See wasm_export.h for description */
 WASM_RUNTIME_API_EXTERN bool
 wasm_runtime_register_natives(const char *module_name,
@@ -894,6 +888,16 @@ wasm_runtime_dump_module_inst_mem_consumption(
 
 void
 wasm_runtime_dump_exec_env_mem_consumption(const WASMExecEnv *exec_env);
+
+bool
+wasm_runtime_get_table_elem_type(const WASMModuleCommon *module_comm,
+                                 uint32 table_idx, uint8 *out_elem_type,
+                                 uint32 *out_min_size, uint32 *out_max_size);
+
+bool
+wasm_runtime_get_table_inst_elem_type(
+    const WASMModuleInstanceCommon *module_inst_comm, uint32 table_idx,
+    uint8 *out_elem_type, uint32 *out_min_size, uint32 *out_max_size);
 
 bool
 wasm_runtime_get_export_func_type(const WASMModuleCommon *module_comm,
